@@ -19,6 +19,11 @@
   ],
   "versions": [
     {
+      "version": "1.21.11",
+      "buildId": "0.16.14",
+      "fabricAPIVersion": "0.131.0"
+    },
+    {
       "version": "1.21.8",
       "buildId": "0.16.14",
       "fabricAPIVersion": "0.131.0"
