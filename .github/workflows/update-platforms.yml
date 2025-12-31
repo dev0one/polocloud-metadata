@@ -244,59 +244,6 @@ jobs:
             fi
           fi
 
-      - name: Check Waterfall updates
-        id: waterfall
-        run: |
-          echo "Checking Waterfall updates..."
-          CURRENT_WATERFALL=$(cat metadata/platforms/waterfall.json | jq '.versions')
-          
-          WATERFALL_VERSIONS=$(curl -s "https://api.papermc.io/v2/projects/waterfall" | jq '.versions')
-          echo "Found Waterfall versions: $WATERFALL_VERSIONS"
-          
-          NEW_VERSIONS="[]"
-          for version in $(echo "$WATERFALL_VERSIONS" | jq -r '.[]'); do
-            echo "Checking version: $version"
-            BUILD_ID=$(curl -s "https://api.papermc.io/v2/projects/waterfall/versions/$version" | jq -r 'if .builds == null or (.builds | length) == 0 then empty else (.builds | max) end')
-            echo "Latest build for $version: $BUILD_ID"
-            
-            if [ -n "$BUILD_ID" ] && [ "$BUILD_ID" != "null" ] && [ "$BUILD_ID" != "" ]; then
-              SHOULD_ADD=$(echo "$CURRENT_WATERFALL" | jq --arg v "$version" --arg b "$BUILD_ID" '
-                if length == 0 then true
-                else
-                  (map(select(.version == $v)) | first | .buildId // 0) as $current |
-                  if $current == 0 then true
-                  else ($b | tonumber) > ($current | tonumber)
-                  end
-                end
-              ')
-              
-              if [ "$SHOULD_ADD" = "true" ]; then
-                CURRENT_BUILD=$(echo "$CURRENT_WATERFALL" | jq -r --arg v "$version" 'if length == 0 then "0" else (map(select(.version == $v)) | first | .buildId // "0") // "0" end')
-                echo "New version found: $version build $BUILD_ID (current: $CURRENT_BUILD)"
-                NEW_VERSION=$(echo "{}" | jq --arg v "$version" --arg b "$BUILD_ID" '.version = $v | .buildId = $b')
-                NEW_VERSIONS=$(echo "$NEW_VERSIONS" | jq --argjson new "$NEW_VERSION" '. + [$new]')
-              else
-                CURRENT_BUILD=$(echo "$CURRENT_WATERFALL" | jq -r --arg v "$version" 'if length == 0 then "0" else (map(select(.version == $v)) | first | .buildId // "0") // "0" end')
-                echo "Version $version build $BUILD_ID already exists or is older (current: $CURRENT_BUILD)"
-              fi
-            fi
-          done
-          
-          if [ "$(echo $NEW_VERSIONS | jq length)" -gt 0 ]; then
-            echo "New Waterfall versions found:"
-            echo "$NEW_VERSIONS" | jq .
-            echo "has_updates=true" >> $GITHUB_OUTPUT
-            
-            jq --slurpfile new <(echo "$NEW_VERSIONS") \
-              '.versions = (.versions + $new[0]) | .versions |= sort_by(.version) | .versions |= reverse' \
-              metadata/platforms/waterfall.json > waterfall-temp.json
-            mv waterfall-temp.json metadata/platforms/waterfall.json
-            echo "Waterfall metadata updated successfully"
-          else
-            echo "No new Waterfall versions"
-            echo "has_updates=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Check Limbo updates
         id: limbo
         run: |
